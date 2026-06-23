@@ -1,0 +1,6 @@
+{
+  "name": "Tournament Fixture Generator",
+  "description": "An advanced tournament scheduler and bracket generator with custom pool division, byes calculation, and time-slot scheduling for Cricket, Carrom, and Chess.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
