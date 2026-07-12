@@ -4990,6 +4990,22 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 7. SMART PDF TABLE IMPORT & NAME MAPPING */}
+                <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800/40 md:col-span-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Layers size={16} className="text-indigo-400" />
+                    <h4 className="text-sm font-bold text-white font-sans">7. Smart PDF Table Import & Name Mapping Engine</h4>
+                  </div>
+                  <div className="text-xs text-slate-300 space-y-2 leading-relaxed font-sans">
+                    <p>Load player lists directly from existing PDF reports or spreadsheets using our advanced table parser:</p>
+                    <ul className="list-disc list-inside space-y-1.5 text-slate-400 pl-1 font-sans">
+                      <li><strong className="text-white">Ignore Header Noise:</strong> The parsing engine automatically detects and discards outer page/table titles (e.g., <i>"Neighborhood Household Demographics"</i>) so that they never clutter your player roster.</li>
+                      <li><strong className="text-white">Smart Column Headers:</strong> Searches for the column heading containing <i>"NAME"</i> or <i>"name"</i> to find player data, then skips that header row entirely to start extracting from the actual rows below.</li>
+                      <li><strong className="text-white">Whole Player Name Merging:</strong> In multi-line layouts, vertically stacked segments belonging to the same player slot (e.g. <i>"Arthur Pendragon"</i>) are merged as a single whole player name, instead of being split incorrectly into separate players (e.g. <i>"Arthur"</i> and <i>"Pendragon"</i>).</li>
+                    </ul>
+                  </div>
+                </div>
+
               </div>
 
               {/* Step-by-Step Training Walkthrough */}
@@ -5112,7 +5128,7 @@ export default function App() {
 
             <div className="flex items-center justify-between pt-6 text-[10px] font-mono" style={{ borderTop: '1px solid #1f2937', color: '#4b5563' }}>
               <span>GLORY GRID ENTERPRISE TOURNAMENT BUILDER</span>
-              <span>Doc Version 5.2.0 (High Precision Production Release) • Page 1 of 4</span>
+              <span>Doc Version 5.2.0 (High Precision Production Release) • Page 1 of 5</span>
             </div>
           </div>
         </div>
@@ -5137,7 +5153,7 @@ export default function App() {
                 <h2 className="text-2xl font-black tracking-tight uppercase" style={{ color: '#111827' }}>
                   SECTION 1: HIGH-FIDELITY CALIBRATION & MEMORY CONTROLS
                 </h2>
-                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#4f46e5', backgroundColor: '#e0e7ff' }}>Page 2 of 4</span>
+                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#4f46e5', backgroundColor: '#e0e7ff' }}>Page 2 of 5</span>
               </div>
 
               <div className="grid grid-cols-2 gap-8 mt-6">
@@ -5229,7 +5245,7 @@ export default function App() {
             
             <div className="pt-4 flex items-center justify-between text-[10px] font-mono" style={{ borderTop: '1px solid #e5e7eb', color: '#9ca3af' }}>
               <span>GLORY GRID SOFTWARE OPERATIONS MANUAL</span>
-              <span>Doc Section: Page 2 of 4</span>
+              <span>Doc Section: Page 2 of 5</span>
             </div>
           </div>
         </div>
@@ -5254,7 +5270,7 @@ export default function App() {
                 <h2 className="text-2xl font-black tracking-tight uppercase" style={{ color: '#111827' }}>
                   SECTION 2: DYNAMIC PLAYOFF BRACKETS & VENUE TIMELINES
                 </h2>
-                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#4f46e5', backgroundColor: '#e0e7ff' }}>Page 3 of 4</span>
+                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#4f46e5', backgroundColor: '#e0e7ff' }}>Page 3 of 5</span>
               </div>
 
               <div className="grid grid-cols-2 gap-8 mt-6">
@@ -5336,7 +5352,7 @@ export default function App() {
             
             <div className="pt-4 flex items-center justify-between text-[10px] font-mono" style={{ borderTop: '1px solid #e5e7eb', color: '#9ca3af' }}>
               <span>GLORY GRID SOFTWARE OPERATIONS MANUAL</span>
-              <span>Doc Section: Page 3 of 4</span>
+              <span>Doc Section: Page 3 of 5</span>
             </div>
           </div>
         </div>
@@ -5361,7 +5377,7 @@ export default function App() {
                 <h2 className="text-2xl font-black tracking-tight uppercase" style={{ color: '#111827' }}>
                   SECTION 3: HIGH-RESOLUTION PDF COMPILATION & DIGITAL ARCHIVING
                 </h2>
-                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#10b981', backgroundColor: '#d1fae5' }}>Page 4 of 4</span>
+                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#10b981', backgroundColor: '#d1fae5' }}>Page 4 of 5</span>
               </div>
 
               <div className="grid grid-cols-2 gap-8 mt-6">
@@ -5426,7 +5442,97 @@ export default function App() {
             
             <div className="pt-4 flex items-center justify-between text-[10px] font-mono" style={{ borderTop: '1px solid #e5e7eb', color: '#9ca3af' }}>
               <span>GLORY GRID SOFTWARE OPERATIONS MANUAL</span>
-              <span>Doc Section: Page 4 of 4</span>
+              <span>Doc Section: Page 4 of 5</span>
+            </div>
+          </div>
+        </div>
+
+        {/* PAGE 5: SMART PDF TABLE IMPORT & NAME MAPPING */}
+        <div 
+          className="manual-pdf-page font-sans text-left overflow-hidden relative"
+          style={{
+            width: '1120px',
+            height: '792px',
+            minWidth: '1120px',
+            minHeight: '792px',
+            boxSizing: 'border-box',
+            backgroundColor: '#ffffff',
+            color: '#111827',
+            padding: '64px'
+          }}
+        >
+          <div className="h-full flex flex-col justify-between" style={{ boxSizing: 'border-box' }}>
+            <div>
+              <div className="flex justify-between items-center pb-3" style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <h2 className="text-2xl font-black tracking-tight uppercase" style={{ color: '#111827' }}>
+                  SECTION 4: SMART PDF TABLE IMPORT & NAME MAPPING ENGINE
+                </h2>
+                <span className="text-xs font-mono px-2.5 py-1 rounded font-bold" style={{ color: '#4f46e5', backgroundColor: '#e0e7ff' }}>Page 5 of 5</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 mt-6">
+                {/* Text Explanations */}
+                <div className="space-y-4">
+                  <h3 className="text-base font-black flex items-center gap-2 pl-2" style={{ borderLeft: '4px solid #4f46e5', color: '#111827' }}>
+                    🔍 Advanced Intelligent PDF Roster Parser
+                  </h3>
+                  <p className="text-xs leading-relaxed" style={{ color: '#4b5563' }}>
+                    Our state-of-the-art document parser includes custom algorithms to make importing rosters from official documents completely friction-free:
+                  </p>
+                  <ul className="text-xs space-y-2.5 list-disc list-inside leading-relaxed pl-1" style={{ color: '#4b5563' }}>
+                    <li>
+                      <strong style={{ color: '#000000' }}>Table Title Suppression:</strong> 
+                      Automatically detects and filters out non-table text titles like <i>"Neighborhood Household Demographics"</i> or general document headers to keep rosters pure.
+                    </li>
+                    <li>
+                      <strong style={{ color: '#000000' }}>Case-Insensitive Column Target:</strong> 
+                      Scans the table horizontally to locate headings matching <i>"NAME"</i> or <i>"name"</i>. Once found, that row is registered as the column header and safely excluded from imports.
+                    </li>
+                    <li>
+                      <strong style={{ color: '#000000' }}>Atomic Full Name Extraction:</strong> 
+                      Rather than splitting name segments, vertically stacked words in the name column are preserved as one complete player name. For example, <i>"Arthur Pendragon"</i> is imported together as <i>Player 1</i> instead of being split into separate player slots.
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Styled Visual Guide mockup */}
+                <div className="p-6 rounded-2xl flex flex-col justify-between" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }}>
+                  <div>
+                    <span className="text-[10px] font-mono font-bold block mb-2 uppercase" style={{ color: '#9ca3af' }}>✦ Intelligent Import Mapping Pipeline</span>
+                    <div className="rounded-xl p-4 space-y-3 shadow-md text-[10px]" style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb' }}>
+                      <div className="flex items-center gap-2 pb-2 text-[9px] font-bold" style={{ borderBottom: '1px solid #e5e7eb', color: '#dc2626' }}>
+                        <span>❌ AVOIDED: "Neighborhood Household Demographics"</span>
+                        <span className="text-[8px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-mono font-normal">Table Header Skip</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 pb-2 text-[9px] font-bold" style={{ borderBottom: '1px solid #e5e7eb', color: '#16a34a' }}>
+                        <span>❌ SKIPPED COLUMN HEADER: "NAME"</span>
+                        <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-mono font-normal">Target Identifier</span>
+                      </div>
+
+                      <div className="space-y-1.5 font-mono text-[8px] leading-relaxed pt-1" style={{ color: '#4b5563' }}>
+                        <p className="font-sans font-bold text-indigo-600">✅ EXTRACTED ROSTER LIST:</p>
+                        <div className="p-1.5 rounded" style={{ backgroundColor: '#fef08a', color: '#854d0e', border: '1px solid #fef08a' }}>
+                          👤 Player 1: <strong>Arthur Pendragon</strong> <span className="text-[7px] text-amber-800 font-sans italic">(Imported as single whole name)</span>
+                        </div>
+                        <div className="p-1.5 rounded" style={{ backgroundColor: '#fef08a', color: '#854d0e', border: '1px solid #fef08a' }}>
+                          👤 Player 2: <strong>Beatrice Portinari</strong> <span className="text-[7px] text-amber-800 font-sans italic">(Imported as single whole name)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-lg text-[10px] leading-relaxed" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af' }}>
+                    ℹ <strong>Roster Rule:</strong> The parser will dynamically group cells vertically based on height and position tolerance. Multi-line stacked text remains bound to the correct player row.
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            
+            <div className="pt-4 flex items-center justify-between text-[10px] font-mono" style={{ borderTop: '1px solid #e5e7eb', color: '#9ca3af' }}>
+              <span>GLORY GRID SOFTWARE OPERATIONS MANUAL</span>
+              <span>Doc Section: Page 5 of 5</span>
             </div>
           </div>
         </div>

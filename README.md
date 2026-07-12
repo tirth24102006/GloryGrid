@@ -1,40 +1,20 @@
-# 🏆 Glory Grid
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Glory Grid is a streamlined tournament fixture generator that automates bracket creation for competitive events. Its intuitive interface simplifies participant management and scheduling, ensuring a seamless experience. This tool eliminates manual overhead, making it the perfect solution to easily track tournament progress.
+# Run and deploy your AI Studio app
 
----
+This contains everything you need to run your app locally.
 
-## ⚡ Features
-* **🤖 Automated Bracket Generation:** Quickly create complex tournament structures without manual effort.
-* **📱 Responsive Design:** Fully optimized to work seamlessly on desktop, tablet, and mobile devices.
-* **🎨 User-Friendly Interface:** Clean, modern, and simple setup for managing participants and match results.
-* **🚀 Fast Deployment:** Built for speed and reliability, hosted via Vercel.
+View your app in AI Studio: https://ai.studio/apps/d6afdc90-be8a-4eca-b1d9-5b4bdb147bcc
 
----
+## Run Locally
 
-## 🌐 Live Demo
-Experience the app in action here: [https://tournament-fixture-generator.vercel.app](https://tournament-fixture-generator.vercel.app)
+**Prerequisites:**  Node.js
 
----
 
-## 🛠️ Built With
-* **Framework:** React.js
-* **Styling:** CSS3 / Tailwind CSS
-* **Deployment:** Vercel
-
----
-
-## 🚀 How to Use
-1. Open the live link.
-2. Input your list of participants.
-3. Configure your tournament settings.
-4. Generate your bracket and start tracking matches!
-
----
-
-## 📜 License
-This project is open-source. Feel free to explore, clone, and contribute to the code!
-
----
-
-Made with ❤️ for tournament organizers.
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`

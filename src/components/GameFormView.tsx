@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameType, DaySchedule, TournamentResult } from '../types';
 import { generateTournament } from '../utils/scheduler';
-import { ChevronLeft, Play, Calendar, User, Users, Plus, Minus, Wand2, Info } from 'lucide-react';
+import { ChevronLeft, Play, Calendar, User, Users, Plus, Minus, Wand2, Info, Upload, Check, AlertCircle, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface GameFormViewProps {
@@ -82,6 +82,19 @@ export default function GameFormView({ gameType, onBack, onGenerate }: GameFormV
 
   // Previous Data Persistence States
   const [hasPrevData, setHasPrevData] = useState<boolean>(false);
+
+  // PDF Name Extractor States
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [parsedDialogData, setParsedDialogData] = useState<{
+    rawRows: string[][];
+    maxColsCount: number;
+    fileName: string;
+  } | null>(null);
+
+  const [pdfColIndexP1, setPdfColIndexP1] = useState<number>(0);
+  const [pdfColIndexP2, setPdfColIndexP2] = useState<number>(1);
+  const [pdfSkipHeader, setPdfSkipHeader] = useState<boolean>(true);
 
   useEffect(() => {
     try {
@@ -295,6 +308,301 @@ export default function GameFormView({ gameType, onBack, onGenerate }: GameFormV
       }
       setNames(copy);
     }
+  };
+
+  // Load PDF JS from CDN dynamically and parse names
+  const loadPdfJS = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if ((window as any).pdfjsLib) {
+        resolve((window as any).pdfjsLib);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = () => {
+        const pdfjs = (window as any).pdfjsLib;
+        if (pdfjs) {
+          pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(pdfjs);
+        } else {
+          reject(new Error("PDF.js library could not be initialized on window."));
+        }
+      };
+      script.onerror = () => reject(new Error("Failed to load PDF library script. Please check your internet connection."));
+      document.head.appendChild(script);
+    });
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsExtracting(true);
+    setPdfError(null);
+
+    try {
+      const pdfjs = await loadPdfJS();
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) });
+      const pdf = await loadingTask.promise;
+
+      const parsedRows: string[][] = [];
+      let maxCols = 0;
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+
+        const items = textContent.items.map((item: any) => {
+          const x = item.transform[4];
+          const y = item.transform[5];
+          const height = item.height || Math.abs(item.transform[3]) || 10;
+          // Use standard item.width if defined and non-zero, otherwise approximate
+          const width = (item.width !== undefined && item.width > 0) 
+            ? item.width 
+            : (height * 0.48 * item.str.length);
+          return {
+            text: item.str,
+            x: x,
+            y: y,
+            width: width,
+            height: height
+          };
+        }).filter((item: any) => item.text.trim().length > 0);
+
+        if (items.length === 0) continue;
+
+        // 1. Vertically merge close text segments belonging to the same column
+        let mergedItems = [...items];
+        let mergedAny = true;
+
+        while (mergedAny) {
+          mergedAny = false;
+          // Sort items: Left-to-right (X ascending), then Top-to-bottom (Y descending)
+          mergedItems.sort((a, b) => {
+            if (Math.abs(a.x - b.x) > 12) {
+              return a.x - b.x;
+            }
+            return b.y - a.y;
+          });
+
+          for (let i = 0; i < mergedItems.length - 1; i++) {
+            const a = mergedItems[i];
+            const b = mergedItems[i + 1];
+
+            const xDiff = Math.abs(a.x - b.x);
+            const aXCenter = a.x + a.width / 2;
+            const bXCenter = b.x + b.width / 2;
+            const centerDiff = Math.abs(aXCenter - bXCenter);
+
+            const isSameCol = xDiff < 15 || centerDiff < 18;
+
+            if (isSameCol) {
+              const yGap = a.y - b.y; // Y is descending in PDF space
+              const maxGap = Math.max(a.height * 1.8, 22);
+
+              if (yGap > 0 && yGap <= maxGap) {
+                const mergedText = `${a.text} ${b.text}`.replace(/\s+/g, ' ').trim();
+                const mergedX = Math.min(a.x, b.x);
+                const mergedY = a.y; // Topmost Y coordinate
+                const mergedWidth = Math.max(a.x + a.width, b.x + b.width) - mergedX;
+                const mergedHeight = a.y - b.y + b.height;
+
+                const newItem = {
+                  text: mergedText,
+                  x: mergedX,
+                  y: mergedY,
+                  width: mergedWidth,
+                  height: mergedHeight
+                };
+
+                mergedItems.splice(i, 2, newItem);
+                mergedAny = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // Group by vertical Y coordinate with a restricted dynamic height tolerance
+        const rowGroups: { y: number; items: any[] }[] = [];
+        mergedItems.forEach((item: any) => {
+          const tolerance = Math.min(Math.max(item.height * 0.75, 7), 12);
+          let foundRow = rowGroups.find(r => Math.abs(r.y - item.y) <= tolerance);
+          if (foundRow) {
+            foundRow.items.push(item);
+          } else {
+            rowGroups.push({ y: item.y, items: [item] });
+          }
+        });
+
+        // Sort rows top-to-bottom (Y coordinates are descending in PDF coordinate space)
+        rowGroups.sort((a, b) => b.y - a.y);
+
+        // Sort horizontal items inside each row left-to-right (X ascending)
+        rowGroups.forEach(rg => {
+          rg.items.sort((a, b) => a.x - b.x);
+        });
+
+        rowGroups.forEach(rg => {
+          // Merge very close horizontal text segments into distinct table cells/columns
+          const columns: string[] = [];
+          let currentCellItems: any[] = [];
+
+          rg.items.forEach((item) => {
+            if (currentCellItems.length === 0) {
+              currentCellItems.push(item);
+            } else {
+              const prev = currentCellItems[currentCellItems.length - 1];
+              const gap = item.x - (prev.x + prev.width);
+              
+              // Define a column gap threshold. If gap is below threshold, they belong to the same cell/name.
+              // A typical single space is ~3-8 units, whereas a column gap is >25 units.
+              // Let's use 22 units as a robust dividing threshold.
+              const threshold = Math.max(22, item.height * 2.0);
+
+              if (gap < threshold) {
+                currentCellItems.push(item);
+              } else {
+                // Flush the finished cell
+                const cellText = currentCellItems
+                  .map(i => i.text)
+                  .join(' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+                if (cellText) {
+                  columns.push(cellText);
+                }
+                currentCellItems = [item];
+              }
+            }
+          });
+
+          if (currentCellItems.length > 0) {
+            const cellText = currentCellItems
+              .map(i => i.text)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (cellText) {
+              columns.push(cellText);
+            }
+          }
+
+          if (columns.length > 0) {
+            parsedRows.push(columns);
+            if (columns.length > maxCols) {
+              maxCols = columns.length;
+            }
+          }
+        });
+      }
+
+      if (parsedRows.length === 0) {
+        throw new Error("We couldn't detect any text rows in this PDF. Please ensure the PDF contains searchable text.");
+      }
+
+      // Auto-detect header row and best column defaults
+      let guessedP1 = 0;
+      let guessedP2 = 1;
+      let autoHeaderRowIdx = -1;
+      let foundNameCols: number[] = [];
+
+      for (let rIdx = 0; rIdx < parsedRows.length; rIdx++) {
+        const row = parsedRows[rIdx];
+        const indices: number[] = [];
+        row.forEach((cell, cIdx) => {
+          const txt = cell.toLowerCase().trim();
+          if (txt === 'name' || txt === 'player' || txt === 'player name' || txt === 'participant' || txt === 'team' || txt === 'team name' || txt === 'player 1' || txt === 'player 2' || txt === 'partner') {
+            indices.push(cIdx);
+          }
+        });
+        if (indices.length > 0) {
+          foundNameCols = indices;
+          autoHeaderRowIdx = rIdx;
+          break;
+        }
+      }
+
+      if (autoHeaderRowIdx !== -1) {
+        // Discard any garbage rows or titles above the header row (e.g. "Neighborhood Household Demographics")
+        parsedRows.splice(0, autoHeaderRowIdx);
+        // Header row is now at index 0, so skip it
+        setPdfSkipHeader(true);
+
+        if (gameType === 'carrom' && isDoubles) {
+          guessedP1 = foundNameCols[0];
+          guessedP2 = foundNameCols[1] !== undefined ? foundNameCols[1] : (foundNameCols[0] + 1 < maxCols ? foundNameCols[0] + 1 : foundNameCols[0]);
+        } else {
+          guessedP1 = foundNameCols[0];
+          guessedP2 = foundNameCols[0] + 1 < maxCols ? foundNameCols[0] + 1 : foundNameCols[0];
+        }
+      } else {
+        // Fallback guesser based on serial numbers in first column
+        let col0IsSerial = 0;
+        const sampleRows = parsedRows.slice(0, Math.min(10, parsedRows.length));
+        sampleRows.forEach(r => {
+          if (r[0] && /^\d+$/.test(r[0])) {
+            col0IsSerial++;
+          }
+        });
+
+        if (col0IsSerial >= sampleRows.length * 0.4 && maxCols > 1) {
+          guessedP1 = 1;
+          guessedP2 = 2 < maxCols ? 2 : 1;
+        } else {
+          guessedP1 = 0;
+          guessedP2 = 1 < maxCols ? 1 : 0;
+        }
+        setPdfSkipHeader(parsedRows.length > 1);
+      }
+
+      setPdfColIndexP1(guessedP1);
+      setPdfColIndexP2(guessedP2);
+
+      setParsedDialogData({
+        rawRows: parsedRows,
+        maxColsCount: maxCols,
+        fileName: file.name
+      });
+    } catch (err: any) {
+      console.error("PDF Parsing error:", err);
+      setPdfError(err.message || "Failed to parse the PDF file.");
+    } finally {
+      setIsExtracting(false);
+      e.target.value = ""; // clear so same file can re-trigger onChange
+    }
+  };
+
+  const handleApplyImport = () => {
+    if (!parsedDialogData) return;
+    
+    const activeRows = pdfSkipHeader ? parsedDialogData.rawRows.slice(1) : parsedDialogData.rawRows;
+
+    if (gameType === 'carrom' && isDoubles) {
+      const list = activeRows.map(row => ({
+        p1: row[pdfColIndexP1] || '',
+        p2: row[pdfColIndexP2] || ''
+      })).filter(team => team.p1.trim() !== '' || team.p2.trim() !== '');
+
+      if (list.length === 0) {
+        alert("The selected column mapping yielded zero valid team names. Please select correct columns.");
+        return;
+      }
+      setParticipantsCount(list.length);
+      setDoublesNames(list);
+    } else {
+      const list = activeRows.map(row => row[pdfColIndexP1] || '').filter(name => name.trim() !== '');
+
+      if (list.length === 0) {
+        alert("The selected column mapping yielded zero valid participant names. Please select a correct column.");
+        return;
+      }
+      setParticipantsCount(list.length);
+      setNames(list);
+    }
+    
+    setParsedDialogData(null);
   };
 
   // Restore previous configuration
@@ -740,6 +1048,30 @@ export default function GameFormView({ gameType, onBack, onGenerate }: GameFormV
               >
                 🔀 SHUFFLE REGISTER
               </button>
+
+              {(gameType === 'chess' || gameType === 'carrom') && (
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handlePdfUpload}
+                    id="pdf-upload-roster-input"
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="pdf-upload-roster-input"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs font-mono font-bold transition-all shadow-md cursor-pointer ${isExtracting ? 'opacity-80' : ''}`}
+                  >
+                    {isExtracting ? (
+                      <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-emerald-400 border-t-transparent" />
+                    ) : (
+                      <Upload size={13} className="text-emerald-400" />
+                    )}
+                    {isExtracting ? "EXTRACTING..." : "UPLOAD NAMES PDF"}
+                  </label>
+                </div>
+              )}
+
               <div className="text-xs font-mono text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
                 <Info size={13} className="text-indigo-400" />
                 Blank names will default to "Slot {`{N}`}"
@@ -1117,6 +1449,397 @@ export default function GameFormView({ gameType, onBack, onGenerate }: GameFormV
           </motion.button>
         </div>
       </form>
+
+      {/* PDF ERROR DIALOG MODAL */}
+      {pdfError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="bg-slate-900 border border-red-500/30 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4 text-red-400">
+              <AlertCircle size={24} />
+              <h3 className="text-lg font-bold font-mono">PDF EXTRACTION FAILED</h3>
+            </div>
+            <p className="text-slate-300 text-sm mb-6 leading-relaxed font-sans">
+              {pdfError}
+            </p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPdfError(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-mono font-bold transition-all cursor-pointer"
+              >
+                DISMISS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF PARSED IMPORT PREVIEW MODAL */}
+      {parsedDialogData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex items-start justify-between shrink-0">
+              <div>
+                <span className="inline-block text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded mb-2 uppercase tracking-widest">
+                  📄 Roster Spreadsheet Parser
+                </span>
+                <h3 className="text-xl font-black text-white font-sans">
+                  Map Columns & Confirm Names
+                </h3>
+                <p className="text-xs text-slate-400 font-mono mt-1 break-all">
+                  Source File: <span className="text-slate-300">{parsedDialogData.fileName}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setParsedDialogData(null)}
+                className="p-1.5 bg-slate-950 border border-slate-850 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body: Interactive Column Mapper & Live Preview */}
+            <div className="p-6 overflow-y-auto space-y-6 bg-slate-950/40 flex-1 custom-scrollbar">
+              
+              {/* SECTION 1: COLUMN SELECTORS */}
+              <div className="bg-slate-900/80 p-5 rounded-xl border border-slate-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-800/60">
+                  <h4 className="text-sm font-bold text-white font-mono flex items-center gap-1.5">
+                    <Wand2 size={15} className="text-indigo-400" />
+                    Configure Column Mapping
+                  </h4>
+                  
+                  {/* Skip Header Toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={pdfSkipHeader}
+                      onChange={(e) => setPdfSkipHeader(e.target.checked)}
+                      className="rounded border-slate-700 text-emerald-500 focus:ring-0 bg-slate-950 h-4 w-4"
+                    />
+                    <span className="text-xs font-mono text-slate-300">Skip First Row (Table Headers)</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {gameType === 'carrom' && isDoubles ? (
+                    <>
+                      {/* Player 1 Col Selection */}
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
+                          <span className="inline-block w-2.5 h-2.5 rounded bg-indigo-500"></span>
+                          👤 Player 1 Column Selector
+                        </label>
+                        <select
+                          value={pdfColIndexP1}
+                          onChange={(e) => setPdfColIndexP1(Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          {Array.from({ length: parsedDialogData.maxColsCount }).map((_, colIdx) => {
+                            const sampleRow = parsedDialogData.rawRows[pdfSkipHeader ? 1 : 0] || parsedDialogData.rawRows[0] || [];
+                            const sampleText = sampleRow[colIdx] ? `(e.g. "${sampleRow[colIdx]}")` : '(empty)';
+                            return (
+                              <option key={colIdx} value={colIdx}>
+                                Column {colIdx + 1} {sampleText}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      {/* Player 2 Col Selection */}
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
+                          <span className="inline-block w-2.5 h-2.5 rounded bg-emerald-500"></span>
+                          👥 Player 2 Column Selector
+                        </label>
+                        <select
+                          value={pdfColIndexP2}
+                          onChange={(e) => setPdfColIndexP2(Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                        >
+                          {Array.from({ length: parsedDialogData.maxColsCount }).map((_, colIdx) => {
+                            const sampleRow = parsedDialogData.rawRows[pdfSkipHeader ? 1 : 0] || parsedDialogData.rawRows[0] || [];
+                            const sampleText = sampleRow[colIdx] ? `(e.g. "${sampleRow[colIdx]}")` : '(empty)';
+                            return (
+                              <option key={colIdx} value={colIdx}>
+                                Column {colIdx + 1} {sampleText}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    /* Singles Col Selection */
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-mono font-bold text-slate-400 uppercase mb-2 flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded bg-indigo-500"></span>
+                        👤 Participant/Team Name Column
+                      </label>
+                      <select
+                        value={pdfColIndexP1}
+                        onChange={(e) => setPdfColIndexP1(Number(e.target.value))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        {Array.from({ length: parsedDialogData.maxColsCount }).map((_, colIdx) => {
+                          const sampleRow = parsedDialogData.rawRows[pdfSkipHeader ? 1 : 0] || parsedDialogData.rawRows[0] || [];
+                          const sampleText = sampleRow[colIdx] ? `(e.g. "${sampleRow[colIdx]}")` : '(empty)';
+                          return (
+                            <option key={colIdx} value={colIdx}>
+                              Column {colIdx + 1} {sampleText}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION 2: RAW PARSED TABLE PREVIEW */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="block text-[11px] font-mono tracking-wider font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                    🔍 Full PDF Data Table (Scroll to confirm all records)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    💡 Click buttons in table headers to map columns directly
+                  </span>
+                </div>
+                
+                <div className="overflow-auto rounded-xl border border-slate-800 bg-slate-900/40 max-h-[350px] custom-scrollbar">
+                  <table className="min-w-full text-left border-collapse text-xs table-auto">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-mono shadow-md">
+                        <th className="p-3.5 w-16 text-center bg-slate-950">Row</th>
+                        {Array.from({ length: parsedDialogData.maxColsCount }).map((_, colIdx) => {
+                          const isP1 = pdfColIndexP1 === colIdx;
+                          const isP2 = gameType === 'carrom' && isDoubles && pdfColIndexP2 === colIdx;
+                          return (
+                            <th 
+                              key={colIdx} 
+                              className={`p-3.5 border-l border-slate-800/80 min-w-[180px] bg-slate-950 transition-all ${
+                                isP1 
+                                  ? 'bg-indigo-950/40 text-indigo-400 border-b-2 border-b-indigo-500' 
+                                  : isP2 
+                                  ? 'bg-emerald-950/40 text-emerald-400 border-b-2 border-b-emerald-500' 
+                                  : ''
+                              }`}
+                            >
+                              <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono text-[10px] uppercase font-bold text-slate-400">
+                                    Col {colIdx + 1}
+                                  </span>
+                                  {isP1 && (
+                                    <span className="text-[9px] bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 px-1.5 py-0.5 rounded font-mono font-bold">
+                                      {gameType === 'carrom' && isDoubles ? 'P1' : 'ACTIVE'}
+                                    </span>
+                                  )}
+                                  {isP2 && (
+                                    <span className="text-[9px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-bold">
+                                      P2
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-1.5 mt-0.5">
+                                  {gameType === 'carrom' && isDoubles ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setPdfColIndexP1(colIdx)}
+                                        className={`flex-1 text-[9px] py-1 px-1.5 rounded font-bold font-mono transition-all ${
+                                          isP1 
+                                            ? 'bg-indigo-500 text-white shadow-lg' 
+                                            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                                        }`}
+                                      >
+                                        SET P1
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setPdfColIndexP2(colIdx)}
+                                        className={`flex-1 text-[9px] py-1 px-1.5 rounded font-bold font-mono transition-all ${
+                                          isP2 
+                                            ? 'bg-emerald-500 text-slate-950 shadow-lg' 
+                                            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                                        }`}
+                                      >
+                                        SET P2
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPdfColIndexP1(colIdx)}
+                                      className={`w-full text-[9px] py-1 px-2 rounded font-bold font-mono transition-all ${
+                                        isP1 
+                                          ? 'bg-indigo-500 text-white shadow-lg' 
+                                          : 'bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 border border-slate-800'
+                                      }`}
+                                    >
+                                      {isP1 ? '✓ ACTIVE SELECTION' : 'CHOOSE AS NAME COLUMN'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedDialogData.rawRows.map((row, rowIdx) => {
+                        const isHeader = pdfSkipHeader && rowIdx === 0;
+                        return (
+                          <tr 
+                            key={rowIdx} 
+                            className={`border-b border-slate-800/40 hover:bg-slate-900/20 transition-all font-mono ${
+                              isHeader ? 'opacity-40 bg-red-950/15 line-through decoration-red-500/50' : ''
+                            }`}
+                          >
+                            <td className="p-3 text-center text-slate-500 text-[10px] bg-slate-950/20 border-r border-slate-800/30 sticky left-0 z-0">
+                              {isHeader ? 'Header' : rowIdx + 1}
+                            </td>
+                            {Array.from({ length: parsedDialogData.maxColsCount }).map((_, colIdx) => {
+                              const val = row[colIdx] || '';
+                              const isP1 = pdfColIndexP1 === colIdx;
+                              const isP2 = gameType === 'carrom' && isDoubles && pdfColIndexP2 === colIdx;
+                              return (
+                                <td 
+                                  key={colIdx} 
+                                  className={`p-3 border-l border-slate-800/40 whitespace-normal break-words font-medium text-slate-300 ${
+                                    isP1 
+                                      ? 'bg-indigo-500/5 font-semibold text-white border-x border-indigo-500/20' 
+                                      : isP2 
+                                      ? 'bg-emerald-500/5 font-semibold text-white border-x border-emerald-500/20' 
+                                      : ''
+                                  }`}
+                                >
+                                  {val || <span className="text-slate-700 italic">empty</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 3: LIVE CONFIRMATION LIST */}
+              <div className="space-y-2">
+                <span className="block text-[10px] font-mono tracking-wider font-bold text-slate-400 uppercase">
+                  📋 Live Resolved Names Preview (Import List Confirmation)
+                </span>
+
+                <div className="bg-slate-900/60 rounded-xl border border-slate-800/80 p-4">
+                  <div className="max-h-[180px] overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                    {(() => {
+                      const activeRows = pdfSkipHeader ? parsedDialogData.rawRows.slice(1) : parsedDialogData.rawRows;
+                      
+                      if (gameType === 'carrom' && isDoubles) {
+                        const list = activeRows.map(row => ({
+                          p1: row[pdfColIndexP1] || '',
+                          p2: row[pdfColIndexP2] || ''
+                        })).filter(team => team.p1.trim() !== '' || team.p2.trim() !== '');
+
+                        if (list.length === 0) {
+                          return (
+                            <div className="text-center py-6 text-slate-500 italic text-xs font-mono">
+                              No team names found. Adjust the column mappings above.
+                            </div>
+                          );
+                        }
+
+                        return list.map((team, idx) => (
+                          <div key={idx} className="flex items-center gap-3 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-800/40 text-xs">
+                            <span className="text-indigo-400 font-mono font-bold w-10 shrink-0">#{idx + 1}</span>
+                            <div className="flex-1 flex gap-2">
+                              <span className="bg-indigo-500/5 px-2.5 py-1 rounded border border-indigo-500/10 text-white truncate max-w-[45%]">
+                                {team.p1 || 'Empty'}
+                              </span>
+                              <span className="text-slate-500 self-center">+</span>
+                              <span className="bg-pink-500/5 px-2.5 py-1 rounded border border-pink-500/10 text-white truncate max-w-[45%]">
+                                {team.p2 || 'Empty'}
+                              </span>
+                            </div>
+                          </div>
+                        ));
+                      } else {
+                        const list = activeRows.map(row => row[pdfColIndexP1] || '').filter(name => name.trim() !== '');
+
+                        if (list.length === 0) {
+                          return (
+                            <div className="text-center py-6 text-slate-500 italic text-xs font-mono">
+                              No player/team names found. Adjust the column mappings above.
+                            </div>
+                          );
+                        }
+
+                        return list.map((name, idx) => (
+                          <div key={idx} className="flex items-center gap-3 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-800/40 text-xs">
+                            <span className="text-indigo-400 font-mono font-bold w-10 shrink-0">#{idx + 1}</span>
+                            <span className="text-slate-200 truncate bg-indigo-500/5 px-2.5 py-1 rounded border border-indigo-500/10">
+                              {name}
+                            </span>
+                          </div>
+                        ));
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Informational Warning */}
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+                <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-slate-300 text-xs leading-relaxed font-sans">
+                  Importing will set the <strong className="text-white">Participants Count</strong> to <strong className="text-emerald-400">
+                    {(() => {
+                      const activeRows = pdfSkipHeader ? parsedDialogData.rawRows.slice(1) : parsedDialogData.rawRows;
+                      if (gameType === 'carrom' && isDoubles) {
+                        return activeRows.map(row => ({
+                          p1: row[pdfColIndexP1] || '',
+                          p2: row[pdfColIndexP2] || ''
+                        })).filter(team => team.p1.trim() !== '' || team.p2.trim() !== '').length;
+                      } else {
+                        return activeRows.map(row => row[pdfColIndexP1] || '').filter(name => name.trim() !== '').length;
+                      }
+                    })()}
+                  </strong> and instantly overwrite your current roster list.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-slate-800 bg-slate-900/50 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setParsedDialogData(null)}
+                className="px-4 py-2 bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-300 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyImport}
+                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-xs font-mono font-black transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check size={14} /> IMPORT & APPLY LIST
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
