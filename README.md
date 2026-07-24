@@ -11,7 +11,7 @@ Glory Grid is a streamlined tournament fixture generator that automates bracket 
 * **🚀 Fast Deployment:** Built for speed and reliability, hosted via Vercel.
 
 ---
-
+ 
 ## 🌐 Live Demo
 Experience the app in action here: [https://tournament-fixture-generator.vercel.app](https://tournament-fixture-generator.vercel.app)
 
