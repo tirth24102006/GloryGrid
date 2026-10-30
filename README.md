@@ -4,7 +4,7 @@ Glory Grid is a streamlined tournament fixture generator that automates bracket 
   
 --- 
 
-## ⚡ Features
+## ⚡ Features 
 * **🤖 Automated Bracket Generation:** Quickly create complex tournament structures without manual effort.
 * **📱 Responsive Design:** Fully optimized to work seamlessly on desktop, tablet, and mobile devices.
 * **🎨 User-Friendly Interface:** Clean, modern, and simple setup for managing participants and match results.
